@@ -1,0 +1,49 @@
+/* sidebars.css */
+body {
+	min-height: 100vh;
+}
+
+main {
+	display: flex;
+	min-height: 94vh;
+}
+
+.flex-shrink-0 {
+	background-color: #1b1f20;
+	/* Dark gray background color */
+	box-shadow: 10px 0px 9px 0px rgba(22, 22, 26, 0.75);
+}
+
+.btn-toggle,
+.btn-toggle-nav a {
+	color: #ffffff;
+	/* White text color for better contrast */
+}
+
+.btn-toggle:hover,
+.btn-toggle:focus,
+.btn-toggle-nav a:hover,
+.btn-toggle-nav a:focus {
+	background-color: #495057;
+	/* Slightly lighter gray for hover effect */
+}
+
+.btn-toggle-nav a {
+	padding: 0.25rem 1rem;
+	margin-top: 0.25rem;
+	margin-bottom: 0.25rem;
+	display: block;
+	text-decoration: none;
+	border-radius: 0.25rem;
+}
+
+.btn-toggle-nav a:hover {
+	background-color: #6c757d;
+	/* Even lighter gray for better hover effect */
+}
+
+.btn-toggle-nav a:focus {
+	outline: none;
+	box-shadow: 0 0 0 0.2rem rgba(108, 117, 125, 0.25);
+	/* Focus effect */
+}

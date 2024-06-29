@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}Main Menu{% endblock %}
+
+{% block content %}
+    <h1 class="mb-4">Main Menu</h1>
+    <div class="list-group">
+        <a href="{{ url_for('pings') }}" class="list-group-item list-group-item-action">Pings</a>
+        <a href="{{ url_for('docker') }}" class="list-group-item list-group-item-action">Docker</a>
+        <a href="{{ url_for('proxmox') }}" class="list-group-item list-group-item-action">Proxmox</a>
+    </div>
+{% endblock %}

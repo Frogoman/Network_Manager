@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}Pings{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Pings</h1>
+    <div class="row">
+        <div class="col-8">
+            <div id="scan-results">
+                <h2>Reachable Devices</h2>
+                <div id="loading-indicator">Loading...</div>
+                <div class="row" id="reachable-ips-list" style="display: none;">
+                    <!-- Scan results will be populated here -->
+                </div>
+                <button class="btn btn-primary mt-3" id="rescan-btn">Rescan Network</button>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div id="port-scan-results">
+                <h2>Port Scan Results</h2>
+                <p id="selected-ip"></p>
+                <ul class="list-group" id="open-ports-list"></ul>
+                <button class="btn btn-secondary mt-3" id="scan-ports-btn">Scan Ports</button>
+                <!-- Loading Spinner -->
+                <div id="loading-spinner" class="spinner-border text-primary mt-3" role="status" style="display: none;">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-5 pt-5">
+        <h2>Saved IPs</h2>
+        <div class="row" id="saved-ips-list">
+            {% for ip, data in saved_ips.items() %}
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title">{{ ip }}</h5>
+                            {% if data.failed %}
+                            <span class="badge bg-danger">Failed</span>
+                            {% elif data.scheduled %}
+                            <span class="badge bg-success">Active</span>
+                            {% endif %}
+                        </div>
+                        <p class="card-text">MAC Address: {{ data.mac }}</p>
+                        <p class="card-text">Manufacturer: {{ data.manufacturer }}</p>
+                        <p class="card-text">Ports:</p>
+                        <ul>
+                            {% for port in data.ports %}
+                            <li>{{ port }}</li>
+                            {% endfor %}
+                        </ul>
+                        <div class="d-flex justify-content-between mt-2">
+                            <form action="{{ url_for('remove_ip') }}" method="post" style="margin-right: 5px;">
+                                <input type="hidden" name="ip_address" value="{{ ip }}">
+                                <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                            </form>
+                            <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#scheduleModal" data-ip="{{ ip }}">Schedule Scan</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="mt-5 pt-5 pb-5 mb-5">
+        <h2>Scheduled Scans</h2>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th scope="col">IP Address</th>
+                    <th scope="col">Interval</th>
+                    <th scope="col">Interval Type</th>
+                    <th scope="col">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="scheduled-scans-list">
+                {% for schedule in scheduled_scans %}
+                <tr>
+                    <td>{{ schedule.ip_address }}</td>
+                    <td>{{ schedule.interval }}</td>
+                    <td>{{ schedule.interval_type }}</td>
+                    <td>
+                        <button class="btn btn-danger btn-sm" onclick="removeScheduledScan('{{ schedule.ip_address }}')">Remove</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Schedule Modal -->
+<div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="scheduleModalLabel">Schedule Port Scan</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="schedule-form">
+          <input type="hidden" id="schedule-ip">
+          <div class="mb-3">
+            <label for="interval" class="form-label">Interval</label>
+            <input type="number" class="form-control" id="interval" required>
+          </div>
+          <div class="mb-3">
+            <label for="interval-type" class="form-label">Interval Type</label>
+            <select class="form-control" id="interval-type" required>
+              <option value="minutes">Minutes</option>
+              <option value="hours">Hours</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Schedule</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch('/rescan', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            const list = document.getElementById('reachable-ips-list');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            list.innerHTML = '';
+            data.forEach(device => {
+                const col = document.createElement('div');
+                col.className = 'col-md-6';
+                col.innerHTML = `
+                    <div class="card mb-4 device-card" data-ip="${device.ip}">
+                        <div class="card-body">
+                            <div class="position-relative">
+                                <input class="form-check-input position-absolute top-0 end-0 m-2" type="radio" name="ip_address" value="${device.ip}" id="${device.ip}">
+                            </div>
+                            <h5 class="card-title">${device.ip}</h5>
+                            <p class="card-text">MAC: ${device.mac}</p>
+                            <p class="card-text">Manufacturer: ${device.manufacturer}</p>
+                        </div>
+                    </div>`;
+                list.appendChild(col);
+            });
+            loadingIndicator.style.display = 'none';
+            list.style.display = 'flex';
+            addCardClickEventListeners();
+        });
+    });
+
+    function addCardClickEventListeners() {
+        document.querySelectorAll('.device-card').forEach(card => {
+            card.addEventListener('click', function() {
+                document.querySelectorAll('.device-card').forEach(card => card.classList.remove('selected'));
+                this.classList.add('selected');
+                this.querySelector('input[name="ip_address"]').checked = true;
+            });
+        });
+    }
+
+    document.getElementById('rescan-btn').addEventListener('click', function() {
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const list = document.getElementById('reachable-ips-list');
+        list.style.display = 'none';
+        loadingIndicator.style.display = 'block';
+        fetch('/rescan', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            list.innerHTML = '';
+            data.forEach(device => {
+                const col = document.createElement('div');
+                col.className = 'col-md-6';
+                col.innerHTML = `
+                    <div class="card mb-4 device-card" data-ip="${device.ip}">
+                        <div class="card-body">
+                            <div class="position-relative">
+                                <input class="form-check-input position-absolute top-0 end-0 m-2" type="radio" name="ip_address" value="${device.ip}" id="${device.ip}">
+                            </div>
+                            <h5 class="card-title">${device.ip}</h5>
+                            <p class="card-text">MAC: ${device.mac}</p>
+                            <p class="card-text">Manufacturer: ${device.manufacturer}</p>
+                        </div>
+                    </div>`;
+                list.appendChild(col);
+            });
+            loadingIndicator.style.display = 'none';
+            list.style.display = 'flex';
+            addCardClickEventListeners();
+        });
+    });
+
+    document.getElementById('scan-ports-btn').addEventListener('click', function() {
+        const selectedIp = document.querySelector('input[name="ip_address"]:checked');
+        if (selectedIp) {
+            const spinner = document.getElementById('loading-spinner');
+            spinner.style.display = 'block'; // Show the spinner
+            fetch('/scan_ports', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ ip_address: selectedIp.value })
+            })
+            .then(response => response.json())
+            .then(data => {
+                spinner.style.display = 'none'; // Hide the spinner
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    document.getElementById('selected-ip').textContent = `IP Address: ${data.ip_address}`;
+                    const list = document.getElementById('open-ports-list');
+                    list.innerHTML = '';
+                    data.open_ports.forEach(port => {
+                        const listItem = document.createElement('li');
+                        listItem.className = 'list-group-item';
+                        listItem.textContent = port;
+                        list.appendChild(listItem);
+                    });
+                }
+            })
+            .catch(() => {
+                spinner.style.display = 'none'; // Hide the spinner in case of error
+                alert('An error occurred while scanning ports.');
+            });
+        } else {
+            alert('Please select an IP address to scan.');
+        }
+    });
+
+    // Handle schedule button click to set IP in the modal
+    document.querySelectorAll('button[data-bs-target="#scheduleModal"]').forEach(button => {
+        button.addEventListener('click', function() {
+            const ip = this.getAttribute('data-ip');
+            document.getElementById('schedule-ip').value = ip;
+        });
+    });
+
+    // Handle form submission for scheduling scan
+    document.getElementById('schedule-form').addEventListener('submit', function(event) {
+        event.preventDefault();
+        const ip = document.getElementById('schedule-ip').value;
+        const interval = document.getElementById('interval').value;
+        const intervalType = document.getElementById('interval-type').value;
+
+        fetch('/schedule_scan', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ip_address: ip,
+                interval: interval,
+                interval_type: intervalType,
+                created_at: new Date().toISOString()
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Scan scheduled successfully.');
+                document.getElementById('schedule-form').reset();
+                const modal = bootstrap.Modal.getInstance(document.getElementById('scheduleModal'));
+                modal.hide();
+            } else {
+                alert(data.message || 'Failed to schedule scan.');
+            }
+        });
+    });
+
+    // Remove scheduled scan
+    function removeScheduledScan(ip_address) {
+        fetch('/remove_scheduled_scan', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ ip_address: ip_address })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Scheduled scan removed successfully.');
+                location.reload();
+            } else {
+                alert('Failed to remove scheduled scan.');
+            }
+        });
+    }
+</script>
+
+<style>
+    .selected {
+        border: 2px solid #007bff;
+    }
+</style>
+{% endblock %}

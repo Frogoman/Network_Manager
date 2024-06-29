@@ -1,0 +1,116 @@
+<!-- templates/docker.html -->
+{% extends "base.html" %}
+
+{% block title %}Docker Management{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Docker</h1>
+    <div class="row">
+        <div class="col-12">
+            <h2>Reachable Devices</h2>
+            <button class="btn btn-primary mb-3" id="refresh-containers">Refresh Containers</button>
+            <table class="table table-dark table-striped">
+                <thead>
+                    <tr>
+                        <th scope="col">Status</th>
+                        <th scope="col">Container ID</th>
+                        <th scope="col">Names</th>
+                        <th scope="col">Image</th>
+                        <th scope="col">Ports</th>
+                        <th scope="col">Created</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="container-list">
+                    <!-- Dynamic content will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="row mt-5 pt-5 pb-5 mb-5">
+        <div class="col-12">
+            <h2>Container Logs</h2>      
+            <pre id="container-logs" class="bg-dark text-white p-3" style="height: 650px; overflow-y: scroll;"></pre>
+            <button class="btn btn-primary mb-3" id="refresh-logs" disabled>Refresh Logs</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let selectedContainerId = null;
+
+    document.getElementById('refresh-containers').addEventListener('click', function() {
+        fetch('/docker/containers')
+            .then(response => response.json())
+            .then(data => {
+                const containerList = document.getElementById('container-list');
+                containerList.innerHTML = '';
+                data.containers.forEach(container => {
+                    const row = document.createElement('tr');
+                    const statusIcon = container.Status === 'running' ? 
+                        '<i class="bi bi-heart-fill text-success"></i>' : 
+                        '<i class="bi bi-square-fill text-danger"></i>';
+                    const isRunning = container.Status === 'running';
+                    row.innerHTML = `
+                        <td>${statusIcon}</td>
+                        <td>${container.Id.slice(0, 8)}...</td>
+                        <td>${container.Names}</td>
+                        <td>${container.Image}</td>
+                        <td>${container.Ports.join(', ')}</td>
+                        <td>${container.Created}</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="stopContainer('${container.Id}')" ${!isRunning ? 'disabled' : ''}><i class="bi bi-square"></i></button>
+                            <button class="btn btn-sm btn-success" onclick="startContainer('${container.Id}')" ${isRunning ? 'disabled' : ''}><i class="bi bi-caret-right"></i></button>
+                            <button class="btn btn-sm btn-info" onclick="viewLogs('${container.Id}')"><i class="bi bi-list-ul"></i></button>
+                       </td>
+                    `;
+                    containerList.appendChild(row);
+                });
+            });
+    });
+
+    document.getElementById('refresh-logs').addEventListener('click', function() {
+        if (selectedContainerId) {
+            fetch(`/docker/containers/${selectedContainerId}/logs`)
+                .then(response => response.json())
+                .then(data => {
+                    const logContainer = document.getElementById('container-logs');
+                    logContainer.textContent = data.logs;
+                });
+        }
+    });
+
+    function stopContainer(containerId) {
+        fetch(`/docker/containers/${containerId}/stop`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                document.getElementById('refresh-containers').click();
+            });
+    }
+
+    function startContainer(containerId) {
+        fetch(`/docker/containers/${containerId}/start`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                document.getElementById('refresh-containers').click();
+            });
+    }
+
+    function viewLogs(containerId) {
+        selectedContainerId = containerId;
+        fetch(`/docker/containers/${containerId}/logs`)
+            .then(response => response.json())
+            .then(data => {
+                const logContainer = document.getElementById('container-logs');
+                logContainer.textContent = data.logs;
+                document.getElementById('refresh-logs').disabled = false;
+            });
+    }
+
+    // Initial load
+    document.getElementById('refresh-containers').click();
+</script>
+{% endblock %}

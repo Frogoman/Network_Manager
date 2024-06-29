@@ -1,0 +1,22 @@
+# Ignore Python bytecode
+__pycache__
+*.pyc
+*.pyo
+
+# Ignore IDE files
+.vscode
+pfg
+
+# Ignore Docker-specific files
+Dockerfile
+.dockerignore
+
+# Ignore tests
+.pytest_cache
+/tests
+
+# Ignore data directories
+data/
+
+# Ignore environment files
+.env
